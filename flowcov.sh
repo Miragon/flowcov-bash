@@ -13,6 +13,7 @@ FAIL_ON_ERROR="false"
 COMMIT_ID=""
 COMMIT_MESSAGE=""
 COMMIT_AUTHOR=""
+URL="https://app.flowcov.io"
 
 # Print header and version
 cat << EOF
@@ -44,6 +45,7 @@ cat << EOF
     --no-ci                     Override the CI detection result
     --no-git                    Do not include commit and repo information
     --fail-on-error             Fail the script if the upload fails
+    --url <URL>                 Override the target url for the upload
     --commit-id <COMMIT_ID>     Override the commit id to upload
     --commit-message <MSG>      Override the commit message to upload
     --commit-author <AUTHOR>    Override the commit author to upload
@@ -95,6 +97,9 @@ do
             ;;
         --branch-name)
             BRANCH_NAME=$2;
+            ;;
+        --url)
+            URL=$2;
             ;;
     esac
     shift
@@ -181,7 +186,7 @@ fi;
 value=$(echo $value | sed "s/'/\"/g");
 
 # Push them to the server
-result=$(curl --write-out "%{http_code}" --silent --output /dev/null -H "Content-Type: application/json" -X POST -d "$value" "https://app.flowcov.io/api/v0/run?apiKey=$API_KEY");
+result=$(curl --write-out "%{http_code}" --silent --output /dev/null -H "Content-Type: application/json" -X POST -d "$value" "$URL/api/v0/run?apiKey=$API_KEY");
 
 # Check if response code was 200
 if [ $result -eq 200 ];
