@@ -5,7 +5,7 @@ VERSION="0.1.0"
 
 # Default values
 API_KEY=""
-PROJECT_ID=""
+REPOSITORY_ID=""
 IS_CI="false"
 PARAM_CI=""
 SKIP_GIT="false"
@@ -13,6 +13,7 @@ FAIL_ON_ERROR="false"
 COMMIT_ID=""
 COMMIT_MESSAGE=""
 COMMIT_AUTHOR=""
+BRANCH_NAME=""
 URL="https://app.flowcov.io"
 
 # Print header and version
@@ -40,7 +41,7 @@ cat << EOF
 
 
     --api-key <API_KEY>         The API key to use (required)
-    --project-id <PROJECT_ID>   The project to use (required)
+    --repository-id <ID>        The repository to use (required)
     --ci                        Override the CI detection result
     --no-ci                     Override the CI detection result
     --no-git                    Do not include commit and repo information
@@ -49,7 +50,6 @@ cat << EOF
     --commit-id <COMMIT_ID>     Override the commit id to upload
     --commit-message <MSG>      Override the commit message to upload
     --commit-author <AUTHOR>    Override the commit author to upload
-    --repo-url <URL>            Override the remote repository url to upload
     --branch-name <BRANCH>      Override the remote branch name to upload
     --help                      Display this help and exit
 
@@ -68,8 +68,8 @@ do
         --api-key)
             API_KEY=$2;
             ;;
-        --project-id)
-            PROJECT_ID=$2;
+        --repository-id)
+            REPOSITORY_ID=$2;
             ;;
         --ci)
             PARAM_CI="true";
@@ -92,9 +92,6 @@ do
         --commit-author)
             COMMIT_AUTHOR=$2;
             ;;
-        --repo-url)
-            REPO_URL=$2;
-            ;;
         --branch-name)
             BRANCH_NAME=$2;
             ;;
@@ -106,11 +103,11 @@ do
 done
 
 if [ -z "$API_KEY" ];
-then echo "Your API key is required, but none was specified. You can find your API key in the project settings. Add it via the --api-key parameter." && exit 1;
+then echo "Your API key is required, but none was specified. You can find your API key in the repository settings. Add it via the --api-key parameter." && exit 1;
 fi;
 
-if [ -z "$PROJECT_ID" ];
-then echo "Your project ID is required, but none was specified. You can find your project ID in the project settings. Add it via the --project-id parameter." && exit 1;
+if [ -z "$REPOSITORY_ID" ];
+then echo "Your repository ID is required, but none was specified. You can find your repository ID in the repository settings. Add it via the --repository-id parameter." && exit 1;
 fi;
 
 
@@ -159,8 +156,7 @@ then
         [ -z $COMMIT_ID ] && COMMIT_ID=$(git rev-parse --short HEAD);
         [ -z $COMMIT_MESSAGE ] && COMMIT_MESSAGE=$(git log --format=%B -n 1 $COMMIT_ID);
         [ -z $COMMIT_AUTHOR ] && COMMIT_AUTHOR=$(git show -s --format='%an <%ae>' $COMMIT_ID);
-        [ -z $REPO_URL ] && REPO_URL=$(git config --get remote.origin.url);
-        [ -z $BRANCH_NAME ] && BRANCH_NAME=$(git rev-parse --abbrev-ref --symbolic-full-name @{u});
+        [ -z $BRANCH_NAME ] && BRANCH_NAME=$(git rev-parse --abbrev-ref --symbolic-full-name @{u}) && BRANCH_NAME=${BRANCH_NAME#*/};
     fi;
 else 
     # Git is not available
@@ -177,16 +173,16 @@ value=$(echo $value | rev | cut -c 2- | rev);
 # Create the json array with the now comma-separated list of reports
 if [ $SKIP_GIT = "false" ];
 then
-    value="{'repoUrl':'$REPO_URL','branchName':'$BRANCH_NAME','projectId':'$PROJECT_ID','ci':'$IS_CI','commitId':'$COMMIT_ID','commitMessage':'$COMMIT_MESSAGE','commitAuthor': '$COMMIT_AUTHOR','data':[$value]}";
+    value="{'branchName':'$BRANCH_NAME','repositoryId':'$REPOSITORY_ID','ci':'$IS_CI','commitId':'$COMMIT_ID','commitMessage':'$COMMIT_MESSAGE','commitAuthor': '$COMMIT_AUTHOR','data':[$value]}";
 else
-    value="{'projectId':'$PROJECT_ID','ci':'$IS_CI','data':[$value]}";
+    value="{'repositoryId':'$REPOSITORY_ID','ci':'$IS_CI','data':[$value]}";
 fi;
 
 # Replace single quotes with double quotes
 value=$(echo $value | sed "s/'/\"/g");
 
 # Push them to the server
-result=$(curl --write-out "%{http_code}" --silent --output /dev/null -H "Content-Type: application/json" -X POST -d "$value" "$URL/api/v0/run?apiKey=$API_KEY");
+result=$(curl --write-out "%{http_code}" --silent --output /dev/null -H "Content-Type: application/json" -X POST -d "$value" "$URL/api/v0/build/upload?apiKey=$API_KEY");
 
 # Check if response code was 200
 if [ $result -eq 200 ];
