@@ -17,31 +17,40 @@
 # See our GitHub Repository
 # https://github.com/FlowSquad/flowcov-bash
 
+# See our documentation
+# https://flowcov.io/docs
+
 # Set before release
-VERSION="0.1.0"
+VERSION="0.1.1";
+
+# Color constants
+RED="\033[0;31m";
+NO_COLOR="\033[0m";
 
 # Default values
-API_KEY=""
-REPOSITORY_ID=""
-IS_CI="false"
-PARAM_CI=""
-SKIP_GIT="false"
-FAIL_ON_ERROR="false"
-COMMIT_ID=""
-COMMIT_MESSAGE=""
-COMMIT_AUTHOR=""
-BRANCH_NAME=""
-URL="https://app.flowcov.io"
+API_KEY="";
+REPOSITORY_ID="";
+IS_CI="false";
+PARAM_CI="";
+SKIP_GIT="false";
+FAIL_ON_ERROR="false";
+SKIP_EMPTY="false";
+COMMIT_ID="";
+COMMIT_MESSAGE="";
+COMMIT_AUTHOR="";
+BRANCH_NAME="";
+SEARCH_DIR=".";
+URL="https://app.flowcov.io";
 
 # Print header and version
 cat << EOF
 
- ______ _                _____           
-|  ____| |              / ____|  v.$VERSION        
-| |__  | | _____      _| |     _____   __
-|  __| | |/ _ \ \ /\ / / |    / _ \ \ / /
-| |    | | (_) \ V  V /| |___| (_) \ V / 
-|_|    |_|\___/ \_/\_/  \_____\___/ \_/  
+     ______ _                _____           
+    |  ____| |              / ____|  v.$VERSION        
+    | |__  | | _____      _| |     _____   __
+    |  __| | |/ _ \ \ /\ / / |    / _ \ \ / /
+    | |    | | (_) \ V  V /| |___| (_) \ V / 
+    |_|    |_|\___/ \_/\_/  \_____\___/ \_/  
 
 
 EOF
@@ -59,10 +68,11 @@ cat << EOF
 
     --api-key <API_KEY>         The API key to use (required)
     --repository-id <ID>        The repository to use (required)
-    --ci                        Override the CI detection result
-    --no-ci                     Override the CI detection result
+    --dir <DIR>                 The directory to search for reports
+    --ci | --no-ci              Override the CI detection result
     --no-git                    Do not include commit and repo information
     --fail-on-error             Fail the script if the upload fails
+    --skip-empty-upload         Don't upload build if no reports were found
     --url <URL>                 Override the target url for the upload
     --commit-id <COMMIT_ID>     Override the commit id to upload
     --commit-message <MSG>      Override the commit message to upload
@@ -84,9 +94,11 @@ do
             ;;
         --api-key)
             API_KEY=$2;
+            shift;
             ;;
         --repository-id)
             REPOSITORY_ID=$2;
+            shift;
             ;;
         --ci)
             PARAM_CI="true";
@@ -100,20 +112,39 @@ do
         --fail-on-error)
             FAIL_ON_ERROR="true";
             ;;
+        --skip-empty-upload)
+            SKIP_EMPTY="true";
+            ;;
         --commit-id)
             COMMIT_ID=$2;
+            shift;
             ;;
         --commit-message)
             COMMIT_MESSAGE=$2;
+            shift;
             ;;
         --commit-author)
             COMMIT_AUTHOR=$2;
+            shift;
             ;;
         --branch-name)
             BRANCH_NAME=$2;
+            shift;
             ;;
         --url)
             URL=$2;
+            shift;
+            ;;
+        --dir)
+            SEARCH_DIR=$2;
+            shift;
+            ;;
+        *)
+            show_help;
+            echo "";
+            echo -e "    ${RED}Error: Unrecognized parameter $1 passed!${NO_COLOR}";
+            echo "";
+            exit 1;
             ;;
     esac
     shift
@@ -181,18 +212,24 @@ else
     SKIP_GIT="true";
 fi;
 
+# Notify user about search dir
+echo "Uploading all reports in directory $SEARCH_DIR";
+
 # Find all matching files in all subdirs, then join their content with a comma as separator
-value=$(find . -name 'flowCovReport.json' -print0 | xargs -I{} -0 sh -c '{ cat {}; echo ,; }');
+value=$(find ${SEARCH_DIR} -name 'flowCovReport.json' -print0 2> /dev/null | xargs -I{} -0 sh -c '{ cat {}; echo ,; }');
+
+# If no reports were found and --skip-empty-upload is passed, exit early
+if [ $SKIP_EMPTY = "true" ] && [ -z $value ];
+    then echo "No reports found in search directory and --skip-empty-upload flag passed. Skipping upload." && exit 0;
+fi;
 
 # Remove the last comma by reversing the string, removing the first char, and reversing it again
 value=$(echo $value | rev | cut -c 2- | rev);
 
 # Create the json array with the now comma-separated list of reports
 if [ $SKIP_GIT = "false" ];
-then
-    value="{'branchName':'$BRANCH_NAME','repositoryId':'$REPOSITORY_ID','ci':'$IS_CI','commitId':'$COMMIT_ID','commitMessage':'$COMMIT_MESSAGE','commitAuthor': '$COMMIT_AUTHOR','data':[$value]}";
-else
-    value="{'repositoryId':'$REPOSITORY_ID','ci':'$IS_CI','data':[$value]}";
+    then value="{'branchName':'$BRANCH_NAME','repositoryId':'$REPOSITORY_ID','ci':'$IS_CI','commitId':'$COMMIT_ID','commitMessage':'$COMMIT_MESSAGE','commitAuthor': '$COMMIT_AUTHOR','data':[$value]}";
+    else value="{'repositoryId':'$REPOSITORY_ID','ci':'$IS_CI','data':[$value]}";
 fi;
 
 # Replace single quotes with double quotes
@@ -209,7 +246,9 @@ then
 else 
     echo "Failed to upload report with status code $result.";
     if [ $FAIL_ON_ERROR = "true" ];
-    then exit 1;
-    else exit 0;
+        # Should fail if an error occurred
+        then exit 1;
+        # Ignore upload error and continue build
+        else exit 0;
     fi;
 fi;
