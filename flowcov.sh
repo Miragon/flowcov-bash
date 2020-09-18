@@ -21,7 +21,7 @@
 # https://flowcov.io/docs
 
 # Set before release
-VERSION="0.1.1";
+VERSION="0.2.0";
 
 # Color constants
 RED="\033[0;31m";
@@ -45,12 +45,12 @@ URL="https://app.flowcov.io";
 # Print header and version
 cat << EOF
 
-     ______ _                _____           
-    |  ____| |              / ____|  v.$VERSION        
-    | |__  | | _____      _| |     _____   __
-    |  __| | |/ _ \ \ /\ / / |    / _ \ \ / /
-    | |    | | (_) \ V  V /| |___| (_) \ V / 
-    |_|    |_|\___/ \_/\_/  \_____\___/ \_/  
+             ______ _                _____           
+            |  ____| |              / ____|  v$VERSION        
+            | |__  | | _____      _| |     _____   __
+            |  __| | |/ _ \ \ /\ / / |    / _ \ \ / /
+            | |    | | (_) \ V  V /| |___| (_) \ V / 
+            |_|    |_|\___/ \_/\_/  \_____\___/ \_/  
 
 
 EOF
@@ -59,7 +59,7 @@ EOF
 show_help() {
 cat << EOF
 
-                      FlowCov Bash $VERSION
+                      FlowCov Bash v$VERSION
 
              Report uploading tool for FlowCov.io
            Documentation at https://flowcov.io/docs
@@ -83,6 +83,12 @@ cat << EOF
 EOF
 }
 
+# Check if any arguments were passed
+if [ $# -eq 0 ];
+then
+    show_help;
+    exit 0;
+fi
 
 while test $# != 0
 do
