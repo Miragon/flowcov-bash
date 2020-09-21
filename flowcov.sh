@@ -21,7 +21,7 @@
 # https://flowcov.io/docs
 
 # Set before release
-VERSION="0.2.0";
+VERSION="0.2.1";
 
 # Color constants
 RED="\033[0;31m";
@@ -70,14 +70,14 @@ cat << EOF
     --repository-id <ID>        The repository to use (required)
     --dir <DIR>                 The directory to search for reports
     --ci | --no-ci              Override the CI detection result
-    --no-git                    Do not include commit and repo information
-    --fail-on-error             Fail the script if the upload fails
-    --skip-empty-upload         Don't upload build if no reports were found
-    --url <URL>                 Override the target url for the upload
+    --no-git                    Don't try to auto-detect commit information
     --commit-id <COMMIT_ID>     Override the commit id to upload
     --commit-message <MSG>      Override the commit message to upload
     --commit-author <AUTHOR>    Override the commit author to upload
     --branch-name <BRANCH>      Override the remote branch name to upload
+    --fail-on-error             Fail the script if the upload fails
+    --skip-empty-upload         Don't upload build if no reports were found
+    --url <URL>                 Override the target url for the upload
     --help                      Display this help and exit
 
 EOF
@@ -200,60 +200,75 @@ GIT_IS_AVAILABLE=$?;
 # If git is available, commit information can be added to report
 if [ $GIT_IS_AVAILABLE -eq 0 ];
 then
-    if [ $SKIP_GIT = "true" ];
+    if [ "$SKIP_GIT" = "true" ];
     then
         # Flag was specified
         echo "Detected flag --no-git, not adding commit information to report.";
     else
         # No flag was specified and git is available
         echo "Adding commit information to report. You can prevent this with the --no-git flag.";
-        [ -z $COMMIT_ID ] && COMMIT_ID=$(git rev-parse --short HEAD);
-        [ -z $COMMIT_MESSAGE ] && COMMIT_MESSAGE=$(git log --format=%B -n 1 $COMMIT_ID);
-        [ -z $COMMIT_AUTHOR ] && COMMIT_AUTHOR=$(git show -s --format='%an <%ae>' $COMMIT_ID);
-        [ -z $BRANCH_NAME ] && BRANCH_NAME=$(git rev-parse --abbrev-ref --symbolic-full-name @{u}) && BRANCH_NAME=${BRANCH_NAME#*/};
+        [ -z "$COMMIT_ID" ] && COMMIT_ID=$(git rev-parse --short HEAD);
+        [ -z "$COMMIT_MESSAGE" ] && COMMIT_MESSAGE=$(git log --format=%B -n 1 "$COMMIT_ID");
+        [ -z "$COMMIT_AUTHOR" ] && COMMIT_AUTHOR=$(git show -s --format='%an <%ae>' "$COMMIT_ID");
+        [ -z "$BRANCH_NAME" ] && BRANCH_NAME=$(git rev-parse --abbrev-ref --symbolic-full-name @{u}) && BRANCH_NAME=${BRANCH_NAME#*/};
     fi;
 else 
     # Git is not available
     echo "Could not find git on path, not adding commit information to report.";
-    SKIP_GIT="true";
+fi;
+
+# Check if search directory exists
+if [ ! -d "$SEARCH_DIR" ];
+    then echo "Search directory $SEARCH_DIR does not exist!" && exit 1;
 fi;
 
 # Notify user about search dir
-echo "Uploading all reports in directory $SEARCH_DIR";
+echo "Uploading all reports in directory $(cd $SEARCH_DIR && pwd).";
 
 # Find all matching files in all subdirs, then join their content with a comma as separator
-value=$(find ${SEARCH_DIR} -name 'flowCovReport.json' -print0 2> /dev/null | xargs -I{} -0 sh -c '{ cat {}; echo ,; }');
+REPORTS=$(find ${SEARCH_DIR} -name 'flowCovReport.json' -print0 2> /dev/null | xargs -I{} -0 sh -c '{ cat {}; echo ,; }');
 
 # If no reports were found and --skip-empty-upload is passed, exit early
-if [ $SKIP_EMPTY = "true" ] && [ -z $value ];
+if [ "$SKIP_EMPTY" = "true" ] && [ -z "$REPORTS" ];
     then echo "No reports found in search directory and --skip-empty-upload flag passed. Skipping upload." && exit 0;
 fi;
 
 # Remove the last comma by reversing the string, removing the first char, and reversing it again
-value=$(echo $value | rev | cut -c 2- | rev);
+REPORTS=$(echo $REPORTS | rev | cut -c 2- | rev);
+
+# Escape all parameters (escape double quotes)
+[ ! -z "$COMMIT_ID" ] && COMMIT_ID=$(echo "$COMMIT_ID" | sed "s/\"/\\\\\"/g");
+[ ! -z "$BRANCH_NAME" ] && BRANCH_NAME=$(echo "$BRANCH_NAME" | sed "s/\"/\\\\\"/g");
+[ ! -z "$COMMIT_MESSAGE" ] && COMMIT_MESSAGE=$(echo "$COMMIT_MESSAGE" | sed "s/\"/\\\\\"/g");
+[ ! -z "$COMMIT_AUTHOR" ] && COMMIT_AUTHOR=$(echo "$COMMIT_AUTHOR" | sed "s/\"/\\\\\"/g");
 
 # Create the json array with the now comma-separated list of reports
-if [ $SKIP_GIT = "false" ];
-    then value="{'branchName':'$BRANCH_NAME','repositoryId':'$REPOSITORY_ID','ci':'$IS_CI','commitId':'$COMMIT_ID','commitMessage':'$COMMIT_MESSAGE','commitAuthor': '$COMMIT_AUTHOR','data':[$value]}";
-    else value="{'repositoryId':'$REPOSITORY_ID','ci':'$IS_CI','data':[$value]}";
-fi;
+JSON="{";
 
-# Replace single quotes with double quotes
-value=$(echo $value | sed "s/'/\"/g");
+# Add all optional information
+[ ! -z "$COMMIT_ID" ] && JSON="$JSON\"commitId\":\"$COMMIT_ID\",";
+[ ! -z "$BRANCH_NAME" ] && JSON="$JSON\"branchName\":\"$BRANCH_NAME\",";
+[ ! -z "$COMMIT_MESSAGE" ] && JSON="$JSON\"commitMessage\":\"$COMMIT_MESSAGE\",";
+[ ! -z "$COMMIT_AUTHOR" ] && JSON="$JSON\"commitAuthor\":\"$COMMIT_AUTHOR\",";
+
+# Add all required information
+JSON="$JSON\"repositoryId\":\"$REPOSITORY_ID\",";
+JSON="$JSON\"ci\":$IS_CI,";
+JSON="$JSON\"data\":[$REPORTS]}";
 
 # Push them to the server
-result=$(curl --write-out "%{http_code}" --silent --output /dev/null -H "Content-Type: application/json" -X POST -d "$value" "$URL/api/v0/build/upload?apiKey=$API_KEY");
+RESULT=$(curl --write-out "%{http_code}" --silent --output /dev/null -H "Content-Type: application/json" -X POST -d "$JSON" "$URL/api/v0/build/upload?apiKey=$API_KEY");
 
 # Check if response code was 200
-if [ $result -eq 200 ];
+if [ $RESULT -eq 200 ];
 then
     echo "Successfully uploaded report.";
     exit 0;
 else 
-    echo "Failed to upload report with status code $result.";
+    echo "Failed to upload report with status code $RESULT.";
     if [ $FAIL_ON_ERROR = "true" ];
         # Should fail if an error occurred
-        then exit 1;
+        then echo "Detected --fail-on-error flag, failing build." && exit 1;
         # Ignore upload error and continue build
         else exit 0;
     fi;
