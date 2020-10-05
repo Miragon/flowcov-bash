@@ -28,6 +28,7 @@ e="\033[1;31m"  # Error
 l="\033[1;32m"  # Logo
 w="\033[1;33m"  # Warning
 h="\033[1;35m"  # Hint
+v="\033[0;36m"  # Verbose
 t="\033[1m"     # Title
 
 # Required Parameters
@@ -55,6 +56,11 @@ FLOWCOV_URL="${FLOWCOV_URL:-"https://app.flowcov.io"}"
 # Debug parameters
 FLOWCOV_DEBUG="${FLOWCOV_DEBUG:-"false"}"
 FLOWCOV_VERBOSE="${FLOWCOV_VERBOSE:-"false"}"
+
+# Shows the value of $1 using echo -e.
+say() {
+    echo -e "    $1"
+}
 
 # Prints header and version.
 show_logo() {
@@ -170,6 +176,7 @@ show_help() {
                     ${h}(or set)${r} FLOWCOV_DEBUG=true
 
     ${t}-v${r}          Output additional log information for debugging.
+                ${w}>> Attention: Argument must be passed as first argument!${r}
                     ${h}(or use)${r} --verbose
                     ${h}(or set)${r} FLOWCOV_VERBOSE=true
 
@@ -177,13 +184,31 @@ EOF
     )"
 }
 
+# Shows a progress title
+title() {
+    echo ""
+    echo -e "${t}==> $1${r}"
+}
+
+# Shows the message in $1 if FLOWCOV_VERBOSE=true, else does nothing.
+log() {
+    if [ "$FLOWCOV_VERBOSE" = "true" ]; then
+        say "${v}$1${r}"
+    fi
+}
+
 # Shows the error passed as $1 and exit with code 1 if FLOWCOV_FAIL_ON_ERROR=true, else exit with code 0.
+# If $2=true, help will be shown
 throw_error() {
-    show_help
-    echo ""
-    echo ""
-    echo -e "  ${e}Error: $1${r}"
-    echo ""
+    if [ "$2" = "true" ]; then
+        show_help
+        say ""
+        say ""
+    fi
+
+    say "${e}Error: $1${r}"
+    say ""
+
     if [ "$FLOWCOV_FAIL_ON_ERROR" = "true" ]; then
         exit 1
     else
@@ -195,7 +220,7 @@ throw_error() {
 # if this is the case. Else does nothing.
 require_parameter() {
     if [ "$1" = "" ]; then
-        throw_error "No argument specified for $2."
+        throw_error "No argument specified for $2." "true"
     fi
 }
 
@@ -208,7 +233,12 @@ if [ $# -eq 0 ]; then
     exit 0
 fi
 
+title "Initializing..."
+
+# Used to check if -v | --verbose is passed as first argument
+is_first="true"
 while test $# != 0; do
+    log "Found parameter $1"
     case "$1" in
         -a | --api-key)
             require_parameter "$2" "$1"
@@ -278,32 +308,38 @@ while test $# != 0; do
             FLOWCOV_DEBUG="true"
             ;;
         -v | --verbose)
+            if [ "$is_first" = "false" ]; then
+                throw_error "Argument $1 must be passed as first argument!" "true"
+            fi;
+
             FLOWCOV_VERBOSE="true"
+            # Log it extra so it does not get lost
+            log "Found parameter $1"
             ;;
         *)
             # Fallback
-            throw_error "Unrecognized parameter $1 passed!"
+            throw_error "Unrecognized parameter $1 passed!" "true"
             ;;
     esac
+    is_first="false"
     shift
 done
 
-# Print newline for formatting
-echo ""
-
 # Check if API key was provided
 if [ -z "$FLOWCOV_API_KEY" ]; then
-    throw_error "Your API key is required, but none was specified. You can find your API key in the repository settings."
+    throw_error "Your API key is required, but none was specified. You can find your API key in the repository settings." "true"
 fi
 
 # Check if repository ID was provided
 if [ -z "$FLOWCOV_REPOSITORY_ID" ]; then
-    throw_error "Your repository ID is required, but none was specified. You can find your repository ID in the repository settings."
+    throw_error "Your repository ID is required, but none was specified. You can find your repository ID in the repository settings." "true"
 fi
+
+title "Auto-detecting CI environment..."
 
 # Check if auto-detection was disabled by flag or environment variable.
 if [ "$FLOWCOV_NO_AUTO_DETECTION" = "true" ]; then
-    echo "Auto-detection of commit information was disabled."
+    say "Auto-detection of commit information was disabled."
 else
     # Try to auto-detect environment and extract commit information from it.
     # Currently supported are:
@@ -319,106 +355,177 @@ else
 
     # Check for Jenkins
     if [ -n "$JENKINS_URL" ]; then
-        echo "Jenkins CI detected."
+        say "Jenkins CI detected."
         detected="true"
 
         # Extract commit id
-        [ -z "$FLOWCOV_COMMIT_ID" ] && FLOWCOV_COMMIT_ID="$GIT_COMMIT"
+        [ -z "$FLOWCOV_COMMIT_ID" ] \
+            && [ -n "$GIT_COMMIT" ] \
+            && FLOWCOV_COMMIT_ID="$GIT_COMMIT" \
+            && log "Extracted commit id:       '$FLOWCOV_COMMIT_ID'"
 
-        # Extract branch name
+        # Extract branch name from...
         # 1. $GIT_BRANCH
         # 2. $BRANCH_NAME
-        [ -z "$FLOWCOV_BRANCH_NAME" ] && [ -z "$GIT_BRANCH" ] && FLOWCOV_BRANCH_NAME="$GIT_BRANCH"
-        [ -z "$FLOWCOV_BRANCH_NAME" ] && [ -z "$BRANCH_NAME" ] && FLOWCOV_BRANCH_NAME="$BRANCH_NAME"
-    fi
+
+        [ -z "$FLOWCOV_BRANCH_NAME" ] \
+            && [ -n "$GIT_BRANCH" ] \
+            && FLOWCOV_BRANCH_NAME="$GIT_BRANCH" \
+            && log "Extracted branch name:     '$FLOWCOV_BRANCH_NAME'"
+
+        [ -z "$FLOWCOV_BRANCH_NAME" ] \
+            && [ -n "$BRANCH_NAME" ] \
+            && FLOWCOV_BRANCH_NAME="$BRANCH_NAME" \
+            && log "Extracted branch name:     '$FLOWCOV_BRANCH_NAME'"
 
     # Check for Travis CI
-    if [ -n "$TRAVIS" ]; then
-        echo "Travis CI detected."
+    elif [ -n "$TRAVIS" ]; then
+        say "Travis CI detected."
         detected="true"
 
         # Extract commit id
-        [ -z "$FLOWCOV_COMMIT_ID" ] && FLOWCOV_COMMIT_ID="$TRAVIS_COMMIT"
+        [ -z "$FLOWCOV_COMMIT_ID" ] \
+            && [ -n "$TRAVIS_COMMIT" ] \
+            && FLOWCOV_COMMIT_ID="$TRAVIS_COMMIT" \
+            && log "Extracted commit id:       '$FLOWCOV_COMMIT_ID'"
+
         # Extract branch name
         # If this is a pull request, the source branch is available from
         # $TRAVIS_PULL_REQUEST_BRANCH, else from $TRAVIS_BRANCH
-        [ -z "$FLOWCOV_BRANCH_NAME" ] && FLOWCOV_BRANCH_NAME="${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH}"
+        [ -z "$FLOWCOV_BRANCH_NAME" ] \
+            && [ -n "${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH}" ] \
+            && FLOWCOV_BRANCH_NAME="${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH}" \
+            && log "Extracted branch name:     '$FLOWCOV_BRANCH_NAME'"
+
         # Extract commit message
-        [ -z "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE="$TRAVIS_COMMIT_MESSAGE"
-    fi
+        [ -z "$FLOWCOV_COMMIT_MESSAGE" ] \
+            && [ -n "$TRAVIS_COMMIT_MESSAGE" ] \
+            && FLOWCOV_COMMIT_MESSAGE="$TRAVIS_COMMIT_MESSAGE" \
+            && log "Extracted commit message:  '$FLOWCOV_COMMIT_MESSAGE'"
 
     # Check for Codebuild CI
-    if [ -n "$CODEBUILD_BUILD_ID" ]; then
-        echo "Codebuild CI detected."
+    elif [ -n "$CODEBUILD_BUILD_ID" ]; then
+        say "Codebuild CI detected."
         detected="true"
 
         # Extract commit id
-        [ -z "$FLOWCOV_COMMIT_ID" ] && FLOWCOV_COMMIT_ID="$CODEBUILD_RESOLVED_SOURCE_VERSION"
+        [ -z "$FLOWCOV_COMMIT_ID" ] \
+            && [ -n "$CODEBUILD_RESOLVED_SOURCE_VERSION" ] \
+            && FLOWCOV_COMMIT_ID="$CODEBUILD_RESOLVED_SOURCE_VERSION" \
+            && log "Extracted commit id:       '$FLOWCOV_COMMIT_ID'"
+
         # Extract branch name and cut of refs/heads/ prefix
-        [ -z "$FLOWCOV_BRANCH_NAME" ] && FLOWCOV_BRANCH_NAME="$(echo "$CODEBUILD_WEBHOOK_HEAD_REF" | sed 's/^refs\/heads\///')"
-    fi
+        [ -z "$FLOWCOV_BRANCH_NAME" ] \
+            && [ -n "$CODEBUILD_WEBHOOK_HEAD_REF" ] \
+            && FLOWCOV_BRANCH_NAME="$(echo "$CODEBUILD_WEBHOOK_HEAD_REF" | sed 's/^refs\/heads\///')" \
+            && log "Extracted branch name:     '$FLOWCOV_BRANCH_NAME'"
 
     # Check for CircleCI
-    if [ -n "$CIRCLECI" ]; then
-        echo "CircleCI detected."
+    elif [ -n "$CIRCLECI" ]; then
+        say "CircleCI detected."
         detected="true"
 
         # Extract commit id
-        [ -z "$FLOWCOV_COMMIT_ID" ] && FLOWCOV_COMMIT_ID="$CIRCLE_SHA1"
+        [ -z "$FLOWCOV_COMMIT_ID" ] \
+            && [ -n "$CIRCLE_SHA1" ] \
+            && FLOWCOV_COMMIT_ID="$CIRCLE_SHA1" \
+            && log "Extracted commit id:       '$FLOWCOV_COMMIT_ID'"
+
         # Extract branch name
-        [ -z "$FLOWCOV_BRANCH_NAME" ] && FLOWCOV_BRANCH_NAME="$CIRCLE_BRANCH"
+        [ -z "$FLOWCOV_BRANCH_NAME" ] \
+            && [ -n "$CIRCLE_BRANCH" ] \
+            && FLOWCOV_BRANCH_NAME="$CIRCLE_BRANCH" \
+            && log "Extracted branch name:     '$FLOWCOV_BRANCH_NAME'"
+
         # Not extracting the CIRCLE_USERNAME variable because it is not necessarily
         # the commit author, but the user who triggered the build
-    fi
 
     # Check for GitLab CI
-    if [ -n "$GITLAB_CI" ]; then
-        echo "GitLab CI detected."
+    elif [ -n "$GITLAB_CI" ]; then
+        say "GitLab CI detected."
         detected="true"
 
         # Extract commit id
-        [ -z "$FLOWCOV_COMMIT_ID" ] && FLOWCOV_COMMIT_ID="$CI_COMMIT_SHORT_SHA"
+        [ -z "$FLOWCOV_COMMIT_ID" ] \
+            && [ -n "$CI_COMMIT_SHORT_SHA" ] \
+            && FLOWCOV_COMMIT_ID="$CI_COMMIT_SHORT_SHA" \
+            && log "Extracted commit id:       '$FLOWCOV_COMMIT_ID'"
+
         # Extract branch name
-        [ -z "$FLOWCOV_BRANCH_NAME" ] && FLOWCOV_BRANCH_NAME="$CI_COMMIT_BRANCH"
+        [ -z "$FLOWCOV_BRANCH_NAME" ] \
+            && [ -n "$CI_COMMIT_BRANCH" ] \
+            && FLOWCOV_BRANCH_NAME="$CI_COMMIT_BRANCH" \
+            && log "Extracted branch name:     '$FLOWCOV_BRANCH_NAME'"
+
         # Extract commit message
-        [ -z "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE="$CI_COMMIT_MESSAGE"
-    fi
+        [ -z "$FLOWCOV_COMMIT_MESSAGE" ] \
+            && [ -n "$CI_COMMIT_MESSAGE" ] \
+            && FLOWCOV_COMMIT_MESSAGE="$CI_COMMIT_MESSAGE" \
+            && log "Extracted commit message:  '$FLOWCOV_COMMIT_MESSAGE'"
 
     # Check for GitHub Actions
-    if [ -n "$GITHUB_ACTIONS" ]; then
-        echo "GitHub Actions detected."
+    elif [ -n "$GITHUB_ACTIONS" ]; then
+        say "GitHub Actions detected."
         detected="true"
 
         # Extract commit id
-        [ -z "$FLOWCOV_COMMIT_ID" ] && FLOWCOV_COMMIT_ID="$GITHUB_SHA"
+        [ -z "$FLOWCOV_COMMIT_ID" ] \
+            && [ -n "$GITHUB_SHA" ] \
+            && FLOWCOV_COMMIT_ID="$GITHUB_SHA" \
+            && log "Extracted commit id:       '$FLOWCOV_COMMIT_ID'"
+
         # Extract branch name and cut of refs/heads/ prefix
-        [ -z "$FLOWCOV_BRANCH_NAME" ] && FLOWCOV_BRANCH_NAME="$(echo "$GITHUB_REF" | sed 's/^refs\/heads\///')"
+        [ -z "$FLOWCOV_BRANCH_NAME" ] \
+            && [ -n "$GITHUB_REF" ] \
+            && FLOWCOV_BRANCH_NAME="$(echo "$GITHUB_REF" | sed 's/^refs\/heads\///')" \
+            && log "Extracted branch name:     '$FLOWCOV_BRANCH_NAME'"
     fi
 
     if [ "$detected" = "false" ]; then
-        echo "Could not detect CI environment."
+        say "Could not detect CI environment. Using build type local."
     fi
 
-    # Add commit information from git if not disabled via environment variable or flag.
-    if [ -z "$FLOWCOV_NO_GIT" ]; then
-        # Check if git is available
-        git --version > /dev/null 2>&1
-        git_available=$?
+    # If any commit information is missing, try to extract it from git
+    if [ -z "$FLOWCOV_COMMIT_ID" ] \
+        || [ -z "$FLOWCOV_COMMIT_MESSAGE" ] \
+        || [ -z "$FLOWCOV_COMMIT_AUTHOR" ] \
+        || [ -z "$FLOWCOV_BRANCH_NAME" ]; then
+        log "Commit information missing, trying to extract it from git"
+        # Add commit information from git if not disabled via environment variable or flag.
+        if [ "$FLOWCOV_NO_GIT" != "true" ]; then
+            # Check if git is available
+            git --version > /dev/null 2>&1
+            git_available=$?
 
-        if [ $git_available -eq 0 ]; then
-            # Check if current directory is a git directory
-            if [ ! -d .git ]; then
-                throw_error "Current directory ($(pwd)) is not a git repository. Not adding missing commit information."
+            if [ $git_available -eq 0 ]; then
+                # Check if current directory is a git directory
+                if [ ! -d .git ]; then
+                    say "Current directory ($(pwd)) is not a git repository. Not adding missing commit information."
+                else
+                    # Add missing commit information by calling git
+                    say "Adding missing commit information from git."
+                    [ -z "$FLOWCOV_COMMIT_ID" ] \
+                        && FLOWCOV_COMMIT_ID=$(git rev-parse --short HEAD 2> /dev/null) \
+                        && log "Extracted commit id:       '$FLOWCOV_COMMIT_ID'"
+
+                    [ -z "$FLOWCOV_COMMIT_MESSAGE" ] \
+                        && FLOWCOV_COMMIT_MESSAGE=$(git log --format=%B -n 1 "$FLOWCOV_COMMIT_ID" 2> /dev/null) \
+                        && log "Extracted commit message:  '$FLOWCOV_COMMIT_MESSAGE'"
+
+                    [ -z "$FLOWCOV_COMMIT_AUTHOR" ] \
+                        && FLOWCOV_COMMIT_AUTHOR=$(git show -s --format='%an <%ae>' "$FLOWCOV_COMMIT_ID" 2> /dev/null) \
+                        && log "Extracted commit author:   '$FLOWCOV_COMMIT_AUTHOR'"
+
+                    [ -z "$FLOWCOV_BRANCH_NAME" ] \
+                        && FLOWCOV_BRANCH_NAME=$(git rev-parse --abbrev-ref --symbolic-full-name @\{u\} 2> /dev/null) \
+                        && FLOWCOV_BRANCH_NAME=${FLOWCOV_BRANCH_NAME#*/} \
+                        && log "Extracted branch name:     '$FLOWCOV_BRANCH_NAME'"
+                fi
             else
-                # Add missing commit information by calling git
-                echo "Adding missing commit information from git."
-                [ -z "$FLOWCOV_COMMIT_ID" ] && FLOWCOV_COMMIT_ID=$(git rev-parse --short HEAD)
-                [ -z "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=$(git log --format=%B -n 1 "$FLOWCOV_COMMIT_ID")
-                [ -z "$FLOWCOV_COMMIT_AUTHOR" ] && FLOWCOV_COMMIT_AUTHOR=$(git show -s --format='%an <%ae>' "$FLOWCOV_COMMIT_ID")
-                [ -z "$FLOWCOV_BRANCH_NAME" ] && FLOWCOV_BRANCH_NAME=$(git rev-parse --abbrev-ref --symbolic-full-name @{u}) && FLOWCOV_BRANCH_NAME=${FLOWCOV_BRANCH_NAME#*/}
+                say "Git is not available on path. Not adding missing commit information."
             fi
         else
-            echo "Git is not available on path. Not adding missing commit information."
+            log "Commit information extraction from git is disabled."
         fi
     fi
 
@@ -433,30 +540,41 @@ else
     fi
 fi
 
+title "Gathering reports..."
+
 # Check if search directory exists
 if [ ! -d "$FLOWCOV_SEARCH_DIR" ]; then
     throw_error "Search directory $FLOWCOV_SEARCH_DIR does not exist!"
 fi
 
 # Notify user about search dir
-echo "Uploading all reports in directory $(cd "$FLOWCOV_SEARCH_DIR" && pwd)."
+say "Uploading all reports in directory $(cd "$FLOWCOV_SEARCH_DIR" && pwd)."
+
+# Print all files in verbose mode
+if [ "$FLOWCOV_VERBOSE" = "true" ]; then
+    find "${FLOWCOV_SEARCH_DIR}" -name 'flowCovReport.json' 2> /dev/null \
+        | while read -r file; do log "Found $file"; done
+fi
 
 # Find all matching files in all subdirectories, then join their content with a comma as separator
-reports=$(find "${FLOWCOV_SEARCH_DIR}" -name 'flowCovReport.json' -print0 2> /dev/null | xargs -I{} -0 sh -c '{ cat {}; echo ,; }')
+reports=$(find "${FLOWCOV_SEARCH_DIR}" -name 'flowCovReport.json' -print0 2> /dev/null \
+    | xargs -I{} -0 sh -c '{ cat {}; echo ,; }')
 
 # If no reports were found and FLOWCOV_SKIP_EMPTY_UPLOAD="true", exit early
 if [ "$FLOWCOV_SKIP_EMPTY_UPLOAD" = "true" ] && [ -z "$reports" ]; then
-    echo "No reports found in search directory. Skipping upload." && exit 0
+    say "No reports found in search directory. Skipping upload." && exit 0
 fi
 
 # Remove the last comma by reversing the string, removing the first char, and reversing it again
-reports=$(echo "$reports" | rev | cut -c 2- | rev)
+# If we put $reports in quotes, it will break the JSON string -> TODO: could this become a problem?
+# shellcheck disable=SC2086
+reports=$(echo $reports | rev | cut -c 2- | rev)
 
 # Escape all parameters (escape double quotes)
-[ -n "$FLOWCOV_COMMIT_ID" ] && FLOWCOV_COMMIT_ID=$(echo "$FLOWCOV_COMMIT_ID" | sed "s/\"/\\\\\"/g")
-[ -n "$FLOWCOV_BRANCH_NAME" ] && FLOWCOV_BRANCH_NAME=$(echo "$FLOWCOV_BRANCH_NAME" | sed "s/\"/\\\\\"/g")
-[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=$(echo "$FLOWCOV_COMMIT_MESSAGE" | sed "s/\"/\\\\\"/g")
-[ -n "$FLOWCOV_COMMIT_AUTHOR" ] && FLOWCOV_COMMIT_AUTHOR=$(echo "$FLOWCOV_COMMIT_AUTHOR" | sed "s/\"/\\\\\"/g")
+[ -n "$FLOWCOV_COMMIT_ID" ] && FLOWCOV_COMMIT_ID=${FLOWCOV_COMMIT_ID//"\""/"\\\""}
+[ -n "$FLOWCOV_BRANCH_NAME" ] && FLOWCOV_BRANCH_NAME=${FLOWCOV_BRANCH_NAME//"\""/"\\\""}
+[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//"\""/"\\\""}
+[ -n "$FLOWCOV_COMMIT_AUTHOR" ] && FLOWCOV_COMMIT_AUTHOR=${FLOWCOV_COMMIT_AUTHOR//"\""/"\\\""}
 
 # Create the json array with the now comma-separated list of reports
 json="{"
@@ -480,6 +598,26 @@ json="$json\"repositoryId\":\"$FLOWCOV_REPOSITORY_ID\","
 json="$json\"ci\":$is_ci,"
 json="$json\"data\":[$reports]}"
 
+# If debug is enabled, just print out the request body
+if [ "$FLOWCOV_DEBUG" = "true" ]; then
+    # If jq is installed, use it
+    if hash jq 2> /dev/null; then
+        echo "$json" | jq --color-output
+    # Else just print it to stdout
+    else
+        echo "$json"
+    fi
+    exit 0
+fi
+
+title "Uploading report..."
+
+# Create URL
+url="$FLOWCOV_URL/api/v0/build/upload?apiKey=$FLOWCOV_API_KEY"
+
+# Log URL, but don't print the API key
+log "Using URL ${url/$FLOWCOV_API_KEY/***}"
+
 # Push them to the server
 result=$(curl \
     --write-out "%{http_code}" \
@@ -488,15 +626,18 @@ result=$(curl \
     -H "Content-Type: application/json" \
     -X POST \
     -d "$json" \
-    "$FLOWCOV_URL/api/v0/build/upload?apiKey=$FLOWCOV_API_KEY")
+    "$url")
 
 # Check if response code was 200
 if [ "$result" -eq 200 ]; then
-    echo "Successfully uploaded report."
+    say "Successfully uploaded report."
+    title "Done."
+    say ""
     exit 0
 elif [ "$FLOWCOV_FAIL_ON_ERROR" = "true" ]; then
     throw_error "Failed to upload report with status code $result."
 else
-    echo "Failed to upload report with status code $result."
+    say "${e}Failed to upload report with status code $result.${r}"
+    say ""
     exit 0
 fi
