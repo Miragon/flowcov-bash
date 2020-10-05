@@ -235,6 +235,11 @@ fi
 
 title "Initializing..."
 
+# If passed via environment variable, print verbose mode info
+if [ "$FLOWCOV_VERBOSE" = "true" ]; then
+    log "Using verbose mode"
+fi
+
 # Used to check if -v | --verbose is passed as first argument
 is_first="true"
 while test $# != 0; do
@@ -314,6 +319,7 @@ while test $# != 0; do
 
             FLOWCOV_VERBOSE="true"
             # Log it extra so it does not get lost
+            log "Using verbose mode"
             log "Found parameter $1"
             ;;
         *)
@@ -548,12 +554,14 @@ if [ ! -d "$FLOWCOV_SEARCH_DIR" ]; then
 fi
 
 # Notify user about search dir
-say "Uploading all reports in directory $(cd "$FLOWCOV_SEARCH_DIR" && pwd)."
+say "Searching in directory $(cd "$FLOWCOV_SEARCH_DIR" && pwd)."
 
 # Print all files in verbose mode
 if [ "$FLOWCOV_VERBOSE" = "true" ]; then
-    find "${FLOWCOV_SEARCH_DIR}" -name 'flowCovReport.json' 2> /dev/null \
-        | while read -r file; do log "Found $file"; done
+    file_count=0
+    while read -r file; do log "Found $file"; (( file_count+=1 )); done < \
+        <(find "${FLOWCOV_SEARCH_DIR}" -name 'flowCovReport.json' 2> /dev/null)
+    log "Found $file_count file(s)"
 fi
 
 # Find all matching files in all subdirectories, then join their content with a comma as separator
