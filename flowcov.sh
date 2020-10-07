@@ -227,12 +227,6 @@ require_parameter() {
 # Show logo header
 show_logo
 
-# Check if zero arguments were passed
-if [ $# -eq 0 ]; then
-    show_help
-    exit 0
-fi
-
 title "Initializing..."
 
 # If passed via environment variable, print verbose mode info
