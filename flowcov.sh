@@ -302,6 +302,15 @@ while test $# != 0; do
             ;;
         -u | --url)
             require_parameter "$2" "$1"
+
+            if [[ "$2" != http* ]] && [[ "$2" != HTTP* ]]; then
+                throw_error "The URL needs to include the http(s):// part!" "true"
+            fi
+
+            if [[ "$2" == */ ]]; then
+                throw_error "The URL must not end with a slash!" "true"
+            fi
+
             FLOWCOV_URL=$2
             shift
             ;;
