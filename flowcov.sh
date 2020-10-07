@@ -626,15 +626,23 @@ url="$FLOWCOV_URL/api/v0/build/upload?apiKey=$FLOWCOV_API_KEY"
 # Log URL, but don't print the API key
 log "Using URL ${url/$FLOWCOV_API_KEY/***}"
 
+# Build additional args that are passed to curl
+curl_args=()
+
+if [ "$FLOWCOV_VERBOSE" = "true" ]; then
+    curl_args+=("-v")
+fi;
+
 # Push them to the server
 result=$(curl \
     --write-out "%{http_code}" \
     --silent \
     --output /dev/null \
+    "${curl_args[@]}" \
     -H "Content-Type: application/json" \
     -X POST \
     -d "$json" \
-    "$url")
+    "$url" | say)
 
 # Check if response code was 200
 if [ "$result" -eq 200 ]; then
