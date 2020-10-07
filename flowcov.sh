@@ -346,6 +346,10 @@ title "Auto-detecting CI environment..."
 # Check if auto-detection was disabled by flag or environment variable.
 if [ "$FLOWCOV_NO_AUTO_DETECTION" = "true" ]; then
     say "Auto-detection of commit information was disabled."
+
+    # Use local build by default
+    FLOWCOV_CI_BUILD="false"
+    FLOWCOV_LOCAL_BUILD="true"
 else
     # Try to auto-detect environment and extract commit information from it.
     # Currently supported are:
@@ -595,7 +599,7 @@ json="{"
 
 # Evaluate build type to is_ci boolean. We use two variables
 # because we might want to pass more information in the future.
-if [ "$FLOWCOV_LOCAL_BUILD" = "true" ] && [ "$FLOWCOV_CI_BUILD" = "true" ]; then
+if [ "$FLOWCOV_LOCAL_BUILD" = "false" ] && [ "$FLOWCOV_CI_BUILD" = "true" ]; then
     is_ci="true"
 else
     is_ci="false"
