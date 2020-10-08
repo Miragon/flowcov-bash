@@ -592,10 +592,9 @@ reports=$(echo $reports | rev | cut -c 2- | rev)
 [ -n "$FLOWCOV_COMMIT_AUTHOR" ] && FLOWCOV_COMMIT_AUTHOR=${FLOWCOV_COMMIT_AUTHOR//"\""/"\\\""}
 
 # Escape all parameters (escape newlines)
-[ -n "$FLOWCOV_COMMIT_ID" ] && FLOWCOV_COMMIT_ID=${FLOWCOV_COMMIT_ID//\n/\\n}
-[ -n "$FLOWCOV_BRANCH_NAME" ] && FLOWCOV_BRANCH_NAME=${FLOWCOV_BRANCH_NAME//\n/\\n}
+[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\r\n/\\n}
 [ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\n/\\n}
-[ -n "$FLOWCOV_COMMIT_AUTHOR" ] && FLOWCOV_COMMIT_AUTHOR=${FLOWCOV_COMMIT_AUTHOR//\n/\\n}
+[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\r/\\n}
 
 # Create the json array with the now comma-separated list of reports
 json="{"
