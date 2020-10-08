@@ -652,7 +652,7 @@ if [ "$FLOWCOV_VERBOSE" = "true" ]; then
 fi;
 
 # Push them to the server
-result=$(curl \
+result=$(echo "$json" | curl \
     --write-out "%{http_code}" \
     --silent \
     --output /dev/null \
@@ -660,7 +660,7 @@ result=$(curl \
     -H "Content-Type: application/json" \
     -X POST \
     -d @- \
-    "$url" < "$json")
+    "$url")
 
 # Check if response code was 200
 if [ "$result" -eq 200 ]; then
