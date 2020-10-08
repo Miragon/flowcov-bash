@@ -617,10 +617,16 @@ json="$json\"data\":[$reports]}"
 if [ "$FLOWCOV_DEBUG" = "true" ]; then
     # If jq is installed, use it
     if hash jq 2> /dev/null; then
-        echo "$json" | jq --color-output
+        # If any error occurs while printing the json via jq,
+        # just echo it instead
+        echo "$json" | jq --color-output || echo "$json"
+        title "Done."
+        say ""
     # Else just print it to stdout
     else
         echo "$json"
+        title "Done."
+        say ""
     fi
     exit 0
 fi
