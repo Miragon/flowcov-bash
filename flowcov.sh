@@ -20,7 +20,7 @@
 # - our Website:            https://flowcov.io
 
 # Set before release
-version="0.3.0"
+version="0.3.1"
 
 # Formatting constants
 r="\033[0m"     # Reset
@@ -592,12 +592,9 @@ reports=$(echo $reports | rev | cut -c 2- | rev)
 [ -n "$FLOWCOV_COMMIT_AUTHOR" ] && FLOWCOV_COMMIT_AUTHOR=${FLOWCOV_COMMIT_AUTHOR//"\""/"\\\""}
 
 # Escape all parameters (escape newlines)
-# TODO: What of these statements is needed? Maybe Base64 is the cleaner solution?
-[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\r\n/"\\\n"}
-[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\n/"\\\n"}
-[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\r/"\\\n"}
-[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//
-/"\\\n"}
+[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//$'\r\n'/"\\n"}
+[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//$'\n'/"\\n"}
+[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//$'\r'/"\\n"}
 
 # Create the json array with the now comma-separated list of reports
 json="{"
