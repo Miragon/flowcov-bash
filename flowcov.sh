@@ -586,10 +586,10 @@ fi
 reports=$(echo $reports | rev | cut -c 2- | rev)
 
 # Escape all parameters (escape double quotes)
-[ -n "$FLOWCOV_COMMIT_ID" ] && FLOWCOV_COMMIT_ID=${FLOWCOV_COMMIT_ID//"\""/"\\\""//"\n"/"\\n"}
-[ -n "$FLOWCOV_BRANCH_NAME" ] && FLOWCOV_BRANCH_NAME=${FLOWCOV_BRANCH_NAME//"\""/"\\\""//"\n"/"\\n"}
-[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//"\""/"\\\""//"\n"/"\\n"}
-[ -n "$FLOWCOV_COMMIT_AUTHOR" ] && FLOWCOV_COMMIT_AUTHOR=${FLOWCOV_COMMIT_AUTHOR//"\""/"\\\""//"\n"/"\\n"}
+[ -n "$FLOWCOV_COMMIT_ID" ] && FLOWCOV_COMMIT_ID=${FLOWCOV_COMMIT_ID//"\""/"\\\""//"\r\n"/"\\n"}
+[ -n "$FLOWCOV_BRANCH_NAME" ] && FLOWCOV_BRANCH_NAME=${FLOWCOV_BRANCH_NAME//"\""/"\\\""//"\r\n"/"\\n"}
+[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//"\""/"\\\""//"\r\n"/"\\n"}
+[ -n "$FLOWCOV_COMMIT_AUTHOR" ] && FLOWCOV_COMMIT_AUTHOR=${FLOWCOV_COMMIT_AUTHOR//"\""/"\\\""//"\r\n"/"\\n"}
 
 # Create the json array with the now comma-separated list of reports
 json="{"
