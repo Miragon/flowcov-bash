@@ -659,8 +659,8 @@ result=$(curl \
     "${curl_args[@]}" \
     -H "Content-Type: application/json" \
     -X POST \
-    -d "$json" \
-    "$url")
+    -d @- \
+    "$url" < "$json")
 
 # Check if response code was 200
 if [ "$result" -eq 200 ]; then
