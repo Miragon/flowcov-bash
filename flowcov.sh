@@ -592,6 +592,7 @@ reports=$(echo $reports | rev | cut -c 2- | rev)
 [ -n "$FLOWCOV_COMMIT_AUTHOR" ] && FLOWCOV_COMMIT_AUTHOR=${FLOWCOV_COMMIT_AUTHOR//"\""/"\\\""}
 
 # Escape all parameters (escape newlines)
+# TODO: What of these statements is needed? Maybe Base64 is the cleaner solution?
 [ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\r\n/"\\\n"}
 [ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\n/"\\\n"}
 [ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\r/"\\\n"}
