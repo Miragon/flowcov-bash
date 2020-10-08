@@ -592,9 +592,11 @@ reports=$(echo $reports | rev | cut -c 2- | rev)
 [ -n "$FLOWCOV_COMMIT_AUTHOR" ] && FLOWCOV_COMMIT_AUTHOR=${FLOWCOV_COMMIT_AUTHOR//"\""/"\\\""}
 
 # Escape all parameters (escape newlines)
-[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\r\n/\\n}
-[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\n/\\n}
-[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\r/\\n}
+[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\r\n/"\\\n"}
+[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\n/"\\\n"}
+[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//\r/"\\\n"}
+[ -n "$FLOWCOV_COMMIT_MESSAGE" ] && FLOWCOV_COMMIT_MESSAGE=${FLOWCOV_COMMIT_MESSAGE//
+/"\\\n"}
 
 # Create the json array with the now comma-separated list of reports
 json="{"
@@ -624,6 +626,7 @@ if [ "$FLOWCOV_DEBUG" = "true" ]; then
     if hash jq 2> /dev/null; then
         # If any error occurs while printing the json via jq,
         # just echo it instead
+        # TODO: There is probably still a bug if you have a huge report and use GitHub Actions
         echo "$json" | jq --color-output || echo "$json"
         title "Done."
         say ""
